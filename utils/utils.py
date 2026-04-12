@@ -26,14 +26,29 @@ class LSTMWrapper:
         self.reset()
     
     def reset(self):
-        if hasattr(self.model, 'lstm'):
-            num_layers = self.model.lstm.num_layers
-            hidden_size = self.model.lstm.hidden_size
-            batch_size = 1
+        # if hasattr(self.model, 'lstm') and hasattr(self.model, 'features_extractor') and hasattr(self.model.features_extractor, 'reset_hidden'):
+        #     num_layers = self.model.lstm.num_layers
+        #     hidden_size = self.model.lstm.hidden_size
+        #     batch_size = 1
+            
+        #     self.lstm_state = (
+        #         th.zeros(num_layers, batch_size, hidden_size).to(self.device),
+        #         th.zeros(num_layers, batch_size, hidden_size).to(self.device),
+        #     )
+      
+        # elif hasattr(self.model, 'features_extractor') and hasattr(self.model.features_extractor, 'reset_hidden'):
+        #     self.model.features_extractor.reset_hidden()
+        #     self.lstm_state = None
+        if hasattr(self.model, 'features_extractor') and hasattr(self.model.features_extractor, 'lstm'):
+            lstm_module = self.model.features_extractor.lstm
+            num_layers = lstm_module.num_layers
+            hidden_size = lstm_module.hidden_size
+            
+            num_dirs = 2 if lstm_module.bidirectional else 1
             
             self.lstm_state = (
-                th.zeros(num_layers, batch_size, hidden_size).to(self.device),
-                th.zeros(num_layers, batch_size, hidden_size).to(self.device),
+                th.zeros(num_layers * num_dirs, 1, hidden_size).to(self.device),
+                th.zeros(num_layers * num_dirs, 1, hidden_size).to(self.device),
             )
         else:
             self.lstm_state = None
@@ -73,16 +88,18 @@ class LSTMWrapper:
             
             action_logits = self.model.action_net(features)
             
-            if deterministic:
-                action = th.argmax(action_logits, dim=1)
-            else:
-                probs = th.softmax(action_logits, dim=1)
-                action = th.multinomial(probs, num_samples=1).squeeze()
+            # if deterministic:
+            #     action = th.argmax(action_logits, dim=1)
+            # else:
+            #     probs = th.softmax(action_logits, dim=1)
+            #     action = th.multinomial(probs, num_samples=1).squeeze()
             
-            action_idx = action.cpu().item()
+            # action_idx = action.cpu().item()
             
-            action_binary = np.zeros(18, dtype=np.int8)
-            action_binary[action_idx] = 1
+            # action_binary = np.zeros(18, dtype=np.int8)
+            # action_binary[action_idx] = 1
+            probs = th.sigmoid(action_logits) # Sigmoid em vez de Softmax
+            action_binary = (probs > 0.5).cpu().numpy().astype(np.int8).squeeze()
         
         return action_binary, None
     

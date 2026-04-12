@@ -2,8 +2,6 @@
 import gymnasium as gym
 import subprocess
 import win32gui
-import win32ui
-from ctypes import windll
 import numpy as np
 import win32process
 import time
@@ -13,9 +11,9 @@ import cv2
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import torch as th
 import torch.nn as nn
-import torchvision.models as models
 from typing import Tuple
 import dxcam
+from collections import deque
 
 TARGET_FPS = 60
 FRAME_TIME = 1.0 / TARGET_FPS
@@ -44,8 +42,6 @@ class RERequiemEnv(gym.Env):
         # search process ID
         self.wait_start()
 
-        # self.predef_capture()
-
         self.gamepad = vg.VDS4Gamepad()
 
         self.prev_keys = set()
@@ -73,20 +69,6 @@ class RERequiemEnv(gym.Env):
         left, top, right, bot = win32gui.GetWindowRect(self.hwnd)
         return (left + 20, top + 100, right, bot)
     
-    def predef_capture(self):
-        left, top, right, bot = win32gui.GetClientRect(self.hwnd)
-        self.win_w = right - left
-        self.win_h = bot - top + 70
-
-        self.hwndDC = win32gui.GetWindowDC(self.hwnd)
-        self.mfcDC = win32ui.CreateDCFromHandle(self.hwndDC)
-        self.saveDC = self.mfcDC.CreateCompatibleDC()
-        
-        self.saveBitMap = win32ui.CreateBitmap()
-        self.saveBitMap.CreateCompatibleBitmap(self.mfcDC, self.win_w, self.win_h)
-        
-        self.saveDC.SelectObject(self.saveBitMap)
-
     def render(self):
         return self.img
 
@@ -133,13 +115,13 @@ class RERequiemEnv(gym.Env):
 
         # buttons
         if actions[4]:
-            current.add(vg.DS4_BUTTONS.DS4_BUTTON_CROSS) # light kick
+            current.add(vg.DS4_BUTTONS.DS4_BUTTON_CROSS)
 
         if actions[5]:
             current.add(vg.DS4_BUTTONS.DS4_BUTTON_CIRCLE)
 
-        if actions[6]: # strong kick
-            current.add(vg.DS4_BUTTONS.DS4_BUTTON_SQUARE) # heavy attack
+        if actions[6]:
+            current.add(vg.DS4_BUTTONS.DS4_BUTTON_SQUARE)
 
 
         if abs(actions[7]) > 0:
@@ -151,7 +133,7 @@ class RERequiemEnv(gym.Env):
         if actions[9]:
             current.add(vg.DS4_BUTTONS.DS4_BUTTON_THUMB_LEFT)
 
-        # TODO: convert to discrete action
+        # convert analog to discrete action
         if np.any(actions[10:14] == 1):
             current.add(-3)
             if actions[10]:
@@ -162,7 +144,8 @@ class RERequiemEnv(gym.Env):
                 right_x = -.5
             if actions[13]:
                 right_x = -1
-        
+
+        # convert analog to discrete action
         if np.any(actions[14:18] == 1):
             current.add(-3)
             # right_y = -actions[8]
@@ -228,53 +211,6 @@ class RERequiemEnv(gym.Env):
         self.img = frame
         
         return cv2.resize(frame, (self.width, self.height), interpolation=cv2.INTER_NEAREST)
-    # def _get_observation(self):
-    #     windll.user32.PrintWindow(self.hwnd, self.saveDC.GetSafeHdc(), 2)
-
-    #     bmpstr = self.saveBitMap.GetBitmapBits(True)
-    #     img = np.frombuffer(bmpstr, dtype='uint8').reshape((self.win_h, self.win_w, 4))
-        
-
-    #     img_rgb = img[100:, 20:, [2, 1, 0]]
-    #     self.img = img_rgb
-
-    #     return cv2.resize(img_rgb, (self.width, self.height), interpolation=cv2.INTER_NEAREST)
-    
-    # def _get_observation(self):
-    #     if self.hwnd == 0:
-    #         raise ValueError("HWND of window not founded")
-
-    #     left, top, right, bot = win32gui.GetClientRect(self.hwnd)
-    #     width =  right - left
-    #     height = bot - top + 70
-
-    #     hwndDC = win32gui.GetWindowDC(self.hwnd)
-    #     mfcDC = win32ui.CreateDCFromHandle(hwndDC)
-    #     saveDC = mfcDC.CreateCompatibleDC()
-
-    #     saveBitMap = win32ui.CreateBitmap()
-    #     saveBitMap.CreateCompatibleBitmap(mfcDC, width, height)
-    #     saveDC.SelectObject(saveBitMap)
-
-
-    #     result = windll.user32.PrintWindow(self.hwnd, saveDC.GetSafeHdc(), 2)
-        
-    #     bmpinfo = saveBitMap.GetInfo()
-    #     bmpstr = saveBitMap.GetBitmapBits(True)
-    #     img = np.frombuffer(bmpstr, dtype='uint8').reshape((bmpinfo['bmHeight'], bmpinfo['bmWidth'], 4))
-        
-    #     img_rgb = img[100:, 20:, [2, 1, 0]]
-
-    #     win32gui.DeleteObject(saveBitMap.GetHandle())
-    #     saveDC.DeleteDC()
-    #     mfcDC.DeleteDC()
-    #     win32gui.ReleaseDC(self.hwnd, hwndDC)
-
-    #     self.img = img_rgb
-
-    #     img_rgb = cv2.resize(img_rgb, (self.width, self.height))
-
-    #     return img_rgb
 
     def find_window_by_process_name(self, process_name):
         def callback(hwnd, result):
@@ -324,64 +260,6 @@ class SpatialAttention(nn.Module):
         attention = th.sigmoid(self.conv(x))
         return x * attention
 
-class ReCNN(BaseFeaturesExtractor):
-    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 512):
-        super().__init__(observation_space, features_dim)
-        n_input_channels = observation_space.shape[0]  # stacked frames (4)
-        
-        self.cnn = nn.Sequential(
-            nn.Conv2d(n_input_channels, 32, kernel_size=5, stride=2, padding=2),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            
-            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            
-            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            
-            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            
-            nn.Conv2d(256, 512, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(512),
-            nn.ReLU(),
-            SpatialAttention(512),
-            nn.AdaptiveAvgPool2d((4, 4)),
-            nn.Flatten(),
-        )
-
-        with th.no_grad():
-            sample = th.zeros(1, n_input_channels, 128, 128)
-            n_flatten = self.cnn(sample).shape[1]
-        
-        self.linear = nn.Sequential(
-            nn.Linear(n_flatten, 1024),
-            nn.BatchNorm1d(1024),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            
-            nn.Linear(1024, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            
-            nn.Linear(512, features_dim),
-            nn.Tanh() if features_dim <= 10 else nn.ReLU()
-        )
-    
-    def forward(self, observations: th.Tensor) -> th.Tensor:
-        observations = observations.float()
-        
-        if observations.max() > 1.0:
-            observations = observations / 255.0
-        
-        observations = (observations - 0.5) / 0.5
-        
-        return self.linear(self.cnn(observations))
 
 class TemporalAttentionLSTM(BaseFeaturesExtractor):
     """
@@ -391,12 +269,14 @@ class TemporalAttentionLSTM(BaseFeaturesExtractor):
                  observation_space: gym.spaces.Box, 
                  features_dim: int = 512,
                  lstm_hidden_size: int = 256,
-                 lstm_num_layers: int = 2):
+                 lstm_num_layers: int = 2,
+                 debug: bool = False):
         super().__init__(observation_space, features_dim)
         
         self.n_frames = observation_space.shape[0]  # 4
         self.frame_height = observation_space.shape[1]
         self.frame_width = observation_space.shape[2]
+        self.debug = debug
         
         self.cnn = nn.Sequential(
             nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=2),
@@ -417,6 +297,9 @@ class TemporalAttentionLSTM(BaseFeaturesExtractor):
             nn.AdaptiveAvgPool2d((1, 1)),
             nn.Flatten(),
         )
+
+        self.lstm_num_layers = lstm_num_layers
+        self.lstm_hidden_size = lstm_hidden_size
         
         # LSTM
         self.lstm = nn.LSTM(
@@ -424,7 +307,7 @@ class TemporalAttentionLSTM(BaseFeaturesExtractor):
             hidden_size=lstm_hidden_size,
             num_layers=lstm_num_layers,
             batch_first=True,
-            bidirectional=True,
+            bidirectional= True, # False, # True,
             dropout=0.2
         )
         
@@ -444,266 +327,126 @@ class TemporalAttentionLSTM(BaseFeaturesExtractor):
             nn.Linear(1024, features_dim),
             nn.ReLU()
         )
+
+        self.hidden_state = None
+        self.hidden_reset = True
+
+        self.window_size = 10
+        self.feature_buffer = deque(maxlen=self.window_size)
     
+    # def forward(self, observations: th.Tensor) -> th.Tensor:
+    #     batch_size = observations.shape[0]
+        
+    #     x = observations.float()
+    #     if x.max() > 1.0:
+    #         x = x / 255.0
+    #     x = (x - 0.5) / 0.5
+        
+    #     x = x.unsqueeze(2)
+    #     cnn_input = x.view(-1, 1, self.frame_height, self.frame_width)
+    #     cnn_features = self.cnn(cnn_input)
+    #     sequence = cnn_features.view(batch_size, self.n_frames, -1)
+        
+    #     # LSTM
+    #     lstm_out, _ = self.lstm(sequence)  # (batch, 4, hidden_size*2)
+        
+    #     attention_weights = th.softmax(self.attention(lstm_out), dim=1)
+    #     context = th.sum(attention_weights * lstm_out, dim=1)
+        
+    #     features = self.linear(context)
+        
+    #     return features
+
+    def repackage_hidden(self, h):
+        if isinstance(h, th.Tensor):
+            return h.detach()
+        else:
+            # For LSTM, the state  is a tuple (h, c)
+            return tuple(self.repackage_hidden(v) for v in h)
+
     def forward(self, observations: th.Tensor) -> th.Tensor:
         batch_size = observations.shape[0]
+        device = observations.device
         
         x = observations.float()
         if x.max() > 1.0:
             x = x / 255.0
         x = (x - 0.5) / 0.5
         
-        x = x.unsqueeze(2)
-        cnn_input = x.view(-1, 1, self.frame_height, self.frame_width)
-        cnn_features = self.cnn(cnn_input)
-        sequence = cnn_features.view(batch_size, self.n_frames, -1)
+        cnn_features = self.cnn(x)  # (batch, 512)
+
+        if batch_size == 1:
+            self.feature_buffer.append(cnn_features.detach())
+        else:
+            self.feature_buffer.append(cnn_features)
+
+            for i in range(len(self.feature_buffer) - 1):
+                self.feature_buffer[i] = self.feature_buffer[i].detach()
+        # self.feature_buffer.append(cnn_features.detach())
+
+        if len(self.feature_buffer) == 1:
+            while len(self.feature_buffer) < self.window_size:
+                self.feature_buffer.append(self.feature_buffer[-1])
+
+        sequence = th.stack(list(self.feature_buffer), dim=1)
         
-        # LSTM
-        lstm_out, _ = self.lstm(sequence)  # (batch, 4, hidden_size*2)
-        
+        sequence.requires_grad_(True)
+
+        should_reset = (
+            self.hidden_reset or 
+            self.hidden_state is None or 
+            self.hidden_state[0].shape[1] != batch_size
+        )
+
+        if should_reset:
+            num_directions = 2
+            hidden_size_total = self.lstm_num_layers * num_directions
+            h0 = th.zeros(hidden_size_total, batch_size, self.lstm_hidden_size, device=device)
+            c0 = th.zeros(hidden_size_total, batch_size, self.lstm_hidden_size, device=device)
+            current_hidden = (h0, c0)
+            self.hidden_reset = False
+        else:
+            current_hidden = self.repackage_hidden(self.hidden_state)
+
+        lstm_out, last_hidden = self.lstm(sequence, current_hidden)
+
+        self.hidden_state = last_hidden
+        # if batch_size == 1:
+        #     self.hidden_state = (last_hidden[0].detach(), last_hidden[1].detach())
+        #     self.hidden_reset = False
+        # else:
+        #     self.hidden_state = None
+
+        if self.debug:
+            if batch_size > 1:
+                print(f"GRAD CHECK | CNN: {self.cnn[0].weight.grad is not None} | LSTM: {self.lstm.weight_hh_l0.grad is not None}")
+
+            if observations.shape[0] > 1:
+                first_frame_mean = observations[0].mean().item()
+                last_frame_mean = observations[-1].mean().item()
+                print(f"DEBUG SEQUENCE | Batch initial: {first_frame_mean:.2f} | Batch final: {last_frame_mean:.2f}")
+            # --- Temporary debug
+            if batch_size == 1:
+                h_data = self.hidden_state[0].detach()
+                print(f"DEBUG LSTM | Mean: {h_data.mean().item():.4f} | Max: {h_data.max().item():.4f} | Var: {h_data.var().item():.4f}")
+            else:
+                h_sample = last_hidden[0].detach() 
+                print(f"TRAIN LSTM | Batch Mean: {h_sample.mean().item():.4f} | Grad: {'Yes' if self.lstm.weight_hh_l0.grad is not None else 'No'}")
+
+            if observations.shape[0] > 1:
+                print(f"DEBUG Training | Window size: {sequence.shape[1]} frame(s) | Batch: {sequence.shape[0]}")
+            else:
+                print(f"DEBUG GAME   | Window size: {sequence.shape[1]} frame(s)")
+            # -----------------------------------------
+
         attention_weights = th.softmax(self.attention(lstm_out), dim=1)
         context = th.sum(attention_weights * lstm_out, dim=1)
-        
         features = self.linear(context)
         
         return features
+    
+    def reset_hidden(self, dones=None):
+        self.hidden_state = None
+        self.hidden_reset = True
+        self.feature_buffer.clear()
 
-
-class TransferLearningLSTM(BaseFeaturesExtractor):
-    def __init__(self, 
-                 observation_space: gym.spaces.Box, 
-                 features_dim: int = 512,
-                 lstm_hidden_size: int = 256,
-                 lstm_num_layers: int = 2,
-                 freeze_backbone_init: bool = False):
-        super().__init__(observation_space, features_dim)
-        
-        n_input_channels = observation_space.shape[0]  # 4 frames stacked
-        self.lstm_hidden_size = lstm_hidden_size
-        self.lstm_num_layers = lstm_num_layers
-        self.n_frames = n_input_channels
-        self.freeze_backbone_init = freeze_backbone_init
-        
-        self.backbone = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-        
-        original_conv = self.backbone.conv1
-        self.backbone.conv1 = nn.Conv2d(
-            1, 64, kernel_size=7, stride=2, padding=3, bias=False  # 1 channel
-        )
-        
-        with th.no_grad():
-            self.backbone.conv1.weight = nn.Parameter(
-                original_conv.weight.mean(dim=1, keepdim=True)
-            )
-        
-        if freeze_backbone_init:
-            self.freeze_layers(until_layer=6)
-        
-        self.backbone = nn.Sequential(*list(self.backbone.children())[:-1])
-        
-        self.cnn_projection = nn.Sequential(
-            nn.Linear(512, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Dropout(0.1)
-        )
-        
-        # LSTM
-        self.lstm = nn.LSTM(
-            input_size=512,
-            hidden_size=lstm_hidden_size,
-            num_layers=lstm_num_layers,
-            batch_first=True,
-            dropout=0.2 if lstm_num_layers > 1 else 0
-        )
-        
-        self.head = nn.Sequential(
-            nn.Linear(lstm_hidden_size, 1024),
-            nn.BatchNorm1d(1024),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(1024, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(512, features_dim),
-            nn.ReLU()
-        )
-        
-        self._features_dim = features_dim
-        self.lstm_state = None
-        self.batch_counter = 0
-    
-    def freeze_layers(self, until_layer=6):
-        layers = list(self.backbone.children())
-        for i, layer in enumerate(layers[:until_layer]):
-            for param in layer.parameters():
-                param.requires_grad = False
-    
-    def unfreeze_all(self):
-        for param in self.backbone.parameters():
-            param.requires_grad = True
-    
-    def init_lstm_state(self, batch_size=1, device='cpu'):
-        self.lstm_state = (
-            th.zeros(self.lstm_num_layers, batch_size, self.lstm_hidden_size).to(device),
-            th.zeros(self.lstm_num_layers, batch_size, self.lstm_hidden_size).to(device)
-        )
-    
-    def forward(self, observations: th.Tensor) -> th.Tensor:
-        batch_size = observations.shape[0]
-        
-        x = observations.float()
-        if x.max() > 1.0:
-            x = x / 255.0
-        x = (x - 0.5) / 0.5
-        
-        # x: (batch, 4, 128, 128)
-        frames = []
-        for t in range(self.n_frames):
-            frame = x[:, t:t+1, :, :]  # (batch, 1, 128, 128)
-            frames.append(frame)
-        
-        cnn_features = []
-        for frame in frames:
-            feat = self.backbone(frame)  # (batch, 512, 1, 1)
-            feat = feat.view(-1, 512)   # (batch, 512)
-            feat = self.cnn_projection(feat)  # (batch, 512)
-            cnn_features.append(feat)
-        
-        sequence = th.stack(cnn_features, dim=1)
-        
-        lstm_out, self.lstm_state = self.lstm(sequence, self.lstm_state)
-
-        self.batch_counter += 1
-        if self.batch_counter % 1 == 0:
-            if self.lstm_state is not None:
-                self.lstm_state = (
-                    self.lstm_state[0].detach(),
-                    self.lstm_state[1].detach()
-                )
-        
-        last_hidden = lstm_out[:, -1, :]  # (batch, lstm_hidden_size)
-        
-        features = self.head(last_hidden)
-        
-        return features
-
-
-class TransferLearningEfficientNetLSTM(BaseFeaturesExtractor):
-    def __init__(self, 
-                 observation_space: gym.spaces.Box, 
-                 features_dim: int = 512,
-                 lstm_hidden_size: int = 256,
-                 lstm_num_layers: int = 2,
-                 freeze_backbone_init: bool = False):
-        super().__init__(observation_space, features_dim)
-        
-        n_input_channels = observation_space.shape[0]  # 4 frames stacked
-        self.lstm_hidden_size = lstm_hidden_size
-        self.lstm_num_layers = lstm_num_layers
-        self.n_frames = n_input_channels
-        
-        # ========== EfficientNet-B0 ==========
-        self.backbone = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.IMAGENET1K_V1)
-        
-        original_conv = self.backbone.features[0][0]
-        self.backbone.features[0][0] = nn.Conv2d(
-            1, 40, kernel_size=3, stride=2, padding=1, bias=False
-        )
-        
-        with th.no_grad():
-            self.backbone.features[0][0].weight = nn.Parameter(
-                original_conv.weight.mean(dim=1, keepdim=True)
-            )
-        
-        # Remove classifier
-        self.backbone.classifier = nn.Identity()
-        
-        # EfficientNet-B0 has 1280 features
-        self.cnn_projection = nn.Sequential(
-            nn.Linear(1280, 1024),  # 1280 → 1024
-            nn.BatchNorm1d(1024),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(1024, 512),    # 1024 → 512
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Dropout(0.1)
-        )
-        
-        # ========== LSTM ==========
-        self.lstm = nn.LSTM(
-            input_size=512,
-            hidden_size=lstm_hidden_size,
-            num_layers=lstm_num_layers,
-            batch_first=True,
-            dropout=0.2 if lstm_num_layers > 1 else 0
-        )
-        
-        # ========== final head ==========
-        self.head = nn.Sequential(
-            nn.Linear(lstm_hidden_size, 1024),
-            nn.BatchNorm1d(1024),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(1024, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(512, features_dim),
-            nn.ReLU()
-        )
-        
-        self._features_dim = features_dim
-        self.lstm_state = None
-        self.batch_counter = 0
-    
-    def init_lstm_state(self, batch_size=1, device='cpu'):
-        self.lstm_state = (
-            th.zeros(self.lstm_num_layers, batch_size, self.lstm_hidden_size).to(device),
-            th.zeros(self.lstm_num_layers, batch_size, self.lstm_hidden_size).to(device)
-        )
-    
-    def forward(self, observations: th.Tensor) -> th.Tensor:
-        batch_size = observations.shape[0]
-        
-        x = observations.float()
-        if x.max() > 1.0:
-            x = x / 255.0
-        x = (x - 0.5) / 0.5
-        
-        frames = []
-        for t in range(self.n_frames):
-            frame = x[:, t:t+1, :, :]  # (batch, 1, 128, 128)
-            frames.append(frame)
-        
-        cnn_features = []
-        for frame in frames:
-            feat = self.backbone(frame)  # (batch, 1280)
-            feat = self.cnn_projection(feat)  # (batch, 512)
-            cnn_features.append(feat)
-        
-        sequence = th.stack(cnn_features, dim=1)  # (batch, 4, 512)
-        
-        # LSTM
-        if self.lstm_state is None:
-            self.init_lstm_state(batch_size, observations.device)
-        
-        lstm_out, self.lstm_state = self.lstm(sequence, self.lstm_state)
-        
-        self.batch_counter += 1
-        if self.batch_counter % 1 == 0:
-            if self.lstm_state is not None:
-                self.lstm_state = (
-                    self.lstm_state[0].detach(),
-                    self.lstm_state[1].detach()
-                )
-        
-        # last hidden state
-        last_hidden = lstm_out[:, -1, :]  # (batch, lstm_hidden_size)
-        
-        # final head
-        features = self.head(last_hidden)
-        
-        return features
