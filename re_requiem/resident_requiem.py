@@ -15,7 +15,7 @@ from typing import Tuple
 import dxcam
 from collections import deque
 
-TARGET_FPS = 60
+TARGET_FPS = 240 # 60
 FRAME_TIME = 1.0 / TARGET_FPS
 
 
@@ -54,7 +54,7 @@ class RERequiemEnv(gym.Env):
 
         self.camera = dxcam.create(output_color="RGB", max_buffer_len=1)
         self.region = self._get_window_region()
-        self.camera.start(region=self.region, target_fps=60)
+        self.camera.start(region=self.region, target_fps=240)
 
         self.observation_space = gym.spaces.Box(
             low=0,
