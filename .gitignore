@@ -3,5 +3,6 @@ __pycache__
 */imitation
 */.ipynb_checkpoints
 */tensorboard_logs/
+*/tensorboard_ppo/
 */gail
 *.zip
