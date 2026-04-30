@@ -1,0 +1,42 @@
+*.o
+build/
+**/pcsx2/
+*.so
+.ipynb_checkpoints/
+.vscode/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+Slot 1/
+Slot 2/
+User/
+cmake_install.cmake
+*.dll
+*.exp
+*.ilk
+*.lib
+*.pdb
+*.pyd
+*.bin
+*.z64
+*.chd
+_retro.*
+third-party/
+*.a
+**/__pycache__/*
+sdlarch_rl/roms/**/rom.*
+*.egg-info
+videos/
+system/
+x64/
+
+# Visual Studio
+*.vcxproj*
+*.sln
+*.dir
+
+# trainning
+model*
+tensorboard*
+demos*
+imitation*/

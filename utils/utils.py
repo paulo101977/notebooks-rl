@@ -26,83 +26,56 @@ class LSTMWrapper:
         self.reset()
     
     def reset(self):
-        # if hasattr(self.model, 'lstm') and hasattr(self.model, 'features_extractor') and hasattr(self.model.features_extractor, 'reset_hidden'):
-        #     num_layers = self.model.lstm.num_layers
-        #     hidden_size = self.model.lstm.hidden_size
-        #     batch_size = 1
-            
-        #     self.lstm_state = (
-        #         th.zeros(num_layers, batch_size, hidden_size).to(self.device),
-        #         th.zeros(num_layers, batch_size, hidden_size).to(self.device),
-        #     )
-      
-        # elif hasattr(self.model, 'features_extractor') and hasattr(self.model.features_extractor, 'reset_hidden'):
-        #     self.model.features_extractor.reset_hidden()
-        #     self.lstm_state = None
+        #reset_hidden
         if hasattr(self.model, 'features_extractor') and hasattr(self.model.features_extractor, 'lstm'):
             lstm_module = self.model.features_extractor.lstm
             num_layers = lstm_module.num_layers
             hidden_size = lstm_module.hidden_size
-            
+
+            reset_hidden = self.model.features_extractor.reset_hidden
+
             num_dirs = 2 if lstm_module.bidirectional else 1
             
             self.lstm_state = (
                 th.zeros(num_layers * num_dirs, 1, hidden_size).to(self.device),
                 th.zeros(num_layers * num_dirs, 1, hidden_size).to(self.device),
             )
+
+            reset_hidden()
         else:
             self.lstm_state = None
     
-    def predict(self, obs, deterministic=False):
-        """
-        Preditct the LSTM action probabilty
-        """
-        if not hasattr(self.model, 'lstm'):
-            return self.model.predict(obs, deterministic=deterministic)
-        
-        if not isinstance(obs, th.Tensor):
-            obs_tensor = th.as_tensor(obs, device=self.device).float()
-        else:
-            obs_tensor = obs
-        
-        if obs_tensor.dim() == 3:  # (4, 128, 128)
-            obs_tensor = obs_tensor.unsqueeze(0)  # (1, 4, 128, 128)
-        
+    def predict(self, obs, state=None, episode_start=None, deterministic=False):
+        self.model.eval()
+
         with th.inference_mode():
-            x = obs_tensor.to(self.device).half()
-            if x.max() > 1.0:
-                x = x / 255.0
-            x = (x - 0.5) / 0.5
-            
-            batch_size, n_frames, h, w = x.shape
-            x = x.unsqueeze(2)  # (1, 4, 1, 128, 128)
-            cnn_input = x.view(-1, 1, h, w)
-            cnn_features = self.model.features_extractor.cnn(cnn_input)
-            sequence = cnn_features.view(batch_size, n_frames, -1)
-            
-            lstm_out, self.lstm_state = self.model.lstm(sequence, self.lstm_state)
-            
-            last_hidden = lstm_out[:, -1, :]
-            
-            features = self.model.features_extractor.linear(last_hidden)
-            
-            action_logits = self.model.action_net(features)
-            
-            # if deterministic:
-            #     action = th.argmax(action_logits, dim=1)
-            # else:
-            #     probs = th.softmax(action_logits, dim=1)
-            #     action = th.multinomial(probs, num_samples=1).squeeze()
-            
-            # action_idx = action.cpu().item()
-            
-            # action_binary = np.zeros(18, dtype=np.int8)
-            # action_binary[action_idx] = 1
-            probs = th.sigmoid(action_logits) # Sigmoid em vez de Softmax
-            action_binary = (probs > 0.5).cpu().numpy().astype(np.int8).squeeze()
-        
-        return action_binary, None
-    
+            obs = np.array(obs)
+
+            if obs.ndim == 4 and obs.shape[0] == 1:
+                obs = obs[0]
+
+            if episode_start is not None and np.any(episode_start):
+                self.reset()
+
+            if self.lstm_state is not None:
+                lstm_state = self.lstm_state
+            else:
+                lstm_state = None
+
+            action, self.lstm_state = self.model.predict(
+                obs,
+                state=lstm_state,
+                episode_start=episode_start,
+                deterministic=deterministic,
+            )
+
+            action = np.array(action)
+
+            if action.ndim == 1:
+                action = action.reshape(1, -1)
+
+            return action, self.lstm_state
+
     def __call__(self, obs, deterministic=False):
         return self.predict(obs, deterministic)
 

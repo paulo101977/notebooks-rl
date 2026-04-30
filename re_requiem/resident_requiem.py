@@ -268,12 +268,12 @@ class TemporalAttentionLSTM(BaseFeaturesExtractor):
     def __init__(self, 
                  observation_space: gym.spaces.Box, 
                  features_dim: int = 512,
-                 lstm_hidden_size: int = 256,
+                 lstm_hidden_size: int = 256, # 512, # 256,
                  lstm_num_layers: int = 2,
                  debug: bool = False):
         super().__init__(observation_space, features_dim)
         
-        self.n_frames = observation_space.shape[0]  # 4
+        self.n_frames = observation_space.shape[0]  # 1 or 4 (frames)
         self.frame_height = observation_space.shape[1]
         self.frame_width = observation_space.shape[2]
         self.debug = debug
@@ -334,28 +334,6 @@ class TemporalAttentionLSTM(BaseFeaturesExtractor):
         self.window_size = 10
         self.feature_buffer = deque(maxlen=self.window_size)
     
-    # def forward(self, observations: th.Tensor) -> th.Tensor:
-    #     batch_size = observations.shape[0]
-        
-    #     x = observations.float()
-    #     if x.max() > 1.0:
-    #         x = x / 255.0
-    #     x = (x - 0.5) / 0.5
-        
-    #     x = x.unsqueeze(2)
-    #     cnn_input = x.view(-1, 1, self.frame_height, self.frame_width)
-    #     cnn_features = self.cnn(cnn_input)
-    #     sequence = cnn_features.view(batch_size, self.n_frames, -1)
-        
-    #     # LSTM
-    #     lstm_out, _ = self.lstm(sequence)  # (batch, 4, hidden_size*2)
-        
-    #     attention_weights = th.softmax(self.attention(lstm_out), dim=1)
-    #     context = th.sum(attention_weights * lstm_out, dim=1)
-        
-    #     features = self.linear(context)
-        
-    #     return features
 
     def repackage_hidden(self, h):
         if isinstance(h, th.Tensor):
@@ -382,7 +360,6 @@ class TemporalAttentionLSTM(BaseFeaturesExtractor):
 
             for i in range(len(self.feature_buffer) - 1):
                 self.feature_buffer[i] = self.feature_buffer[i].detach()
-        # self.feature_buffer.append(cnn_features.detach())
 
         if len(self.feature_buffer) == 1:
             while len(self.feature_buffer) < self.window_size:
@@ -411,11 +388,6 @@ class TemporalAttentionLSTM(BaseFeaturesExtractor):
         lstm_out, last_hidden = self.lstm(sequence, current_hidden)
 
         self.hidden_state = last_hidden
-        # if batch_size == 1:
-        #     self.hidden_state = (last_hidden[0].detach(), last_hidden[1].detach())
-        #     self.hidden_reset = False
-        # else:
-        #     self.hidden_state = None
 
         if self.debug:
             if batch_size > 1:

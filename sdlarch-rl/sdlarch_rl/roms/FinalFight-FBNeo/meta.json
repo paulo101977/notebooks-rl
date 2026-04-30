@@ -1,0 +1,31 @@
+{
+    "crop": {
+        "bottom": 0,
+        "left": 0,
+        "right": 0,
+        "top": 0
+    },
+    "savestate": "1",
+    "variables": [
+        {
+            "name": "lives",
+            "type": "u1",
+            "address": "0x85E9"
+        },
+        {
+            "name": "health",
+            "type": "u1",
+            "address": "0x1218"
+        },
+        {
+            "name": "points",
+            "type": "u1",
+            "address": "0x8020"
+        },
+        {
+            "name": "x",
+            "type": "u2",
+            "address": "0x85E4"
+        }
+    ]
+}
