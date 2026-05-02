@@ -14,11 +14,12 @@ from collections import deque
 from sdlarch_rl import make
 import numpy as np
 from stable_baselines3.common.atari_wrappers import WarpFrame
-from sdlarch_rl.utils.utils import get_last_index, RealExcludeButtonsWrapper, GenericCNN, TimeLimit, FrameSkip
+from sdlarch_rl.utils.utils import TimeLimit, FrameSkip, AugmentObservation, RandomStateWrapper
+
 
 myEnv = None
 
-def make_env(human=False):
+def make_env(human=False, width=None, height=None, random=True, skip=True):
     def _init():
         render_mode="rgb_array"
 
@@ -27,13 +28,24 @@ def make_env(human=False):
 
         env = make(
             "FinalFight-FBNeo",
-            render_mode=render_mode
+            render_mode=render_mode,
+            width=width,
+            height=height,
         )
+
+        if random:
+            env = RandomStateWrapper(env, states=[
+                'default', 
+                'middle',
+                'final',
+            ])
     
         env = FinalFightActionWrapper(env)
+        env = AugmentObservation(env)
         env = ActionBufferWrapper(env)
         env = WarpFrame(env, width=96, height=96)
-        env = FrameSkip(env, skip=2)
+        if skip:
+            env = FrameSkip(env, skip=2)
         env = TimeLimit(env, max_steps=6500)
         return env
 
@@ -50,7 +62,7 @@ class ActionBufferWrapper(gym.Wrapper):
 
         # If the agent click in special moves, we set a cooldown to prevent spamming
         if action[4] and action[5]:
-            self.special_cooldown = 30 # take 30 steps to reset the cooldown, this is a hyperparameter that can be tuned
+            self.special_cooldown = 22 # take 22 steps to reset the cooldown, this is a hyperparameter that can be tuned
 
         obs, reward, done, truncated, info = self.env.step(action)
         

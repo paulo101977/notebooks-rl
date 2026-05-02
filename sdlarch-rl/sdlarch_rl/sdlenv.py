@@ -25,6 +25,8 @@ class SDLEnv(gym.Env):
         gamename: str,
         players:int=1,
         env_id:int=None,
+        width:int=None,
+        height:int=None,
         render_mode="rgb_array",
         env_variables:List[Dict[str, str]]=None,
         statename=None,
@@ -36,7 +38,9 @@ class SDLEnv(gym.Env):
         self.players = players
         self.gamename = gamename
         self.env_variables = env_variables
-        
+        self.width = width
+        self.height = height
+
         # try force gc free resources
         gc.collect()
         gc.collect()
@@ -161,6 +165,10 @@ class SDLEnv(gym.Env):
             pygame.init()
             # get the current shape of obs
             height, width = self.em.get_shape()
+
+            if self.width is not None and self.height is not None:
+                width = self.width
+                height = self.height
             
             # Limit image size
             max_width = 1200

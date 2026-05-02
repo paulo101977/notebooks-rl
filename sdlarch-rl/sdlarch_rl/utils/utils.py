@@ -121,10 +121,10 @@ def random_brightness(frame):
     frame = np.clip(frame * factor, 0, 255).astype(np.uint8)
     return frame
 
-def add_noise(frame):
-    noise = np.random.normal(0, 5, frame.shape).astype(np.uint8)
-    frame = np.clip(frame + noise, 0, 255)
-    return frame
+def add_noise(self, frame):
+    noise = np.random.normal(0, 5, frame.shape) 
+    frame_with_noise = frame.astype(np.int16) + noise
+    return np.clip(frame_with_noise, 0, 255).astype(np.uint8)
 
 def apply_blur(frame):
     # Apply Gaussian Blur with kernel 3x3 or 5x5

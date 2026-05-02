@@ -26,6 +26,21 @@
             "name": "x",
             "type": "u2",
             "address": "0x85E4"
+        },
+        {
+            "name": "is_left_side",
+            "type": "u1",
+            "address": "0x8597"
+        },
+        {
+            "name": "number_enemies",
+            "type": "u1",
+            "address": "0x1155"
+        },
+        {
+            "name": "level",
+            "type": "u1",
+            "address": "0x80C0"
         }
     ]
 }
