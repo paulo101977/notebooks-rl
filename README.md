@@ -30,18 +30,22 @@ This one shows the messy reality of training agents — and how to make them wor
 
 ## 🔥Starting
 
-1. First create a conda environment with python 3.11: `conda create -n env311 python=3.11`
+1. Clone this repo: `https://github.com/paulo101977/notebooks-rl.git`
 
-2. Activate it: `conda activate env311`
+2. Move to cloned folder: `cd notebooks-rl`
 
-3. Install requirements: `pip install -r requirements.txt`
+3. First create a conda environment with python 3.11: `conda create -n env311 python=3.11`
 
-4. Install Jax: `pip install git+https://github.com/araffin/sbx`
+4. Activate it: `conda activate env311`
 
-5. (Optional but recommended) Install Jupyter kernel:
+5. Install requirements: `pip install -r requirements.txt`
+
+6. Install Jax: `pip install git+https://github.com/araffin/sbx`
+
+7. (Optional but recommended) Install Jupyter kernel:
 `python -m ipykernel install --user --name env311 --display-name "Python (env311)"`
 
-6. Run Jupyter-lab: `jupyter-lab.exe`
+8. Run Jupyter-lab: `jupyter-lab.exe`
 
 ## ⚡ PyTorch (GPU Support)
 
@@ -49,7 +53,7 @@ If you have an NVIDIA GPU with CUDA support, install PyTorch separately:
 `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121`
 
 > ⚠️ Make sure to match the CUDA version (`cu118`, `cu121`, etc.) with your system.
-> You can check compatibility here: https://pytorch.org/get-started/locally/
+> You can check compatibility here: <https://pytorch.org/get-started/locally/>
 
 If you don't have a GPU, install the CPU version:
 `pip install torch torchvision`
@@ -57,4 +61,4 @@ If you don't have a GPU, install the CPU version:
 ## ❤️ Support
 
 If you find this useful, consider sponsoring:
-https://github.com/sponsors/paulo101977
+<https://github.com/sponsors/paulo101977>
