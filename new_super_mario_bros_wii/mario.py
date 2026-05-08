@@ -58,12 +58,14 @@ class NewSuperMarioBrosActionWrapper(gym.ActionWrapper):
             [0, 0, 0, 0], # 0: NOOP (does nothing)
 
             # right
-            [0, 1, 1, 0], # 1: right + run
-            [0, 1, 1, 1], # 2: right + jump + run
+            [0, 1, 0, 0], # 1: right
+            [0, 1, 0, 1], # 2: right + jump
+            [0, 1, 1, 0], # 3: right + run
+            [0, 1, 1, 1], # 4: right + jump + run
 
-            #left
-            [1, 0, 0, 0], # 3: left
-            [1, 0, 0, 1], # 4: left + jump
+            # #left
+            # [1, 0, 0, 0], # 3: left
+            # [1, 0, 0, 1], # 4: left + jump
         ]
 
         self.action_space = gym.spaces.Discrete(len(self.action_list))

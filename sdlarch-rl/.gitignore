@@ -11,12 +11,10 @@ Slot 1/
 Slot 2/
 User/
 cmake_install.cmake
-*.dll
 *.exp
 *.ilk
 *.lib
 *.pdb
-*.pyd
 *.bin
 *.z64
 *.chd
